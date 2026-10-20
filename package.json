@@ -4,8 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server.mjs",
-    "start": "node server.mjs",
+    "build": "node scripts/build.mjs",
+    "dev": "npm run build && node server.mjs",
+    "start": "npm run build && node server.mjs",
     "test": "node --test"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "supabase": "^2.121.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0"
   }
 }

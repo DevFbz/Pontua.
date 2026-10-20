@@ -7,3 +7,8 @@ node_modules/
 Thumbs.db
 coverage/
 dist/
+.vercel/
+
+.vercel
+.env*
+!.env.example

@@ -1,6 +1,6 @@
 # Segurança, privacidade e conformidade
 
-Nota de escopo: este baseline amplo descreve controles para uma eventual versão multiusuário/servidor, não recursos presentes no MVP. O app atual é local, individual e sem transmissão de dados, autenticação ou criptografia gerenciada pela aplicação. Veja os limites concretos em `README.md` e não exponha o servidor de desenvolvimento.
+Nota de escopo: este baseline amplo descreve controles para uma eventual versão multiusuário/servidor, não recursos presentes no MVP. O app atual é local, individual e sem transmissão de dados, autenticação ou criptografia gerenciada pela aplicação. Registros ficam no localStorage; fotos anexadas ficam no IndexedDB da mesma origem e só são incluídas em backup JSON quando o usuário solicita. Veja os limites concretos em `README.md` e não exponha o servidor de desenvolvimento.
 
 ## LGPD e minimização
 - Mapear controlador, operador, finalidades, bases legais, destinatários, transferências e prazos de retenção com o cliente e DPO/jurídico.

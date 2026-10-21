@@ -24,7 +24,7 @@ export function parseLocalDateTime(dateText, timeText) {
   return result;
 }
 
-export function calculateDay(punches, targetMinutes = 480) {
+export function calculateDay(punches, targetMinutes = 480, holidayName = null) {
   const sorted = [...punches].sort((a, b) => new Date(a.at) - new Date(b.at));
   let workStart = null;
   let workedMinutes = 0;
@@ -43,7 +43,8 @@ export function calculateDay(punches, targetMinutes = 480) {
   }
   const lastPunch = sorted.at(-1);
   const open = Boolean(lastPunch && lastPunch.kind !== 'clock_out');
-  return { workedMinutes, targetMinutes, balanceMinutes: workedMinutes - targetMinutes, open, warnings };
+  const creditedMinutes = holidayName && sorted.length === 0 ? targetMinutes : workedMinutes;
+  return { workedMinutes: creditedMinutes, targetMinutes, balanceMinutes: creditedMinutes - targetMinutes, open, warnings, holidayName };
 }
 
 export function calculateBalance(days) {

@@ -4,6 +4,7 @@ import { prepareReceiptPhoto, putPunchPhoto, getPunchPhoto, deletePunchPhotos, c
 import { createCloudStore } from './cloud-store.mjs';
 import { supabaseClient, supabaseConfigured } from './supabase-client.mjs';
 import { LEGACY_STATE_KEY, stateKeyForUser } from './state-cache.mjs';
+import { getHolidayForDate, getHolidaysForMonth } from './holidays.mjs';
 
 const KEY = LEGACY_STATE_KEY;
 const DEFAULTS = { punches: [], targetMinutes: 480, name: '', adjustments: [] };
@@ -56,7 +57,7 @@ function nextKind(punches) {
   if (last === 'break_start') return 'break_end';
   return 'clock_out';
 }
-function dayData(key) { return calculateDay(dayPunches(key), state.targetMinutes); }
+function dayData(key) { return calculateDay(dayPunches(key), state.targetMinutes, key<=todayKey()?getHolidayForDate(key):null); }
 function showToast(message) { const el = document.querySelector('#toast'); el.textContent = message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(()=>el.classList.remove('show'),2600); }
 function weekStart(date) { const d = new Date(date); const day = (d.getDay()+6)%7; d.setDate(d.getDate()-day); d.setHours(0,0,0,0); return d; }
 function escapeCsv(value) { return `"${String(value).replaceAll('"','""')}"`; }
@@ -82,11 +83,11 @@ function renderHome() {
   document.querySelector('#punch-button-label').textContent='Incluir batida';
   document.querySelector('#today-punch-count').textContent=`${today.length} ${today.length===1?'registro':'registros'}`;
   const last=today.at(-1); document.querySelector('#clock-message').textContent=last?`${PUNCH_LABELS[last.kind]} registrada às ${formatClock(last.at)}. Próximo passo no seu ritmo.`:'Quando começar, registre sua primeira entrada.';
-  const day=dayData(todayKey()); const displayedBalance=today.length?day.balanceMinutes:0; document.querySelector('#worked-today').textContent=minsToClock(day.workedMinutes); document.querySelector('#daily-target').textContent=minsToClock(state.targetMinutes); document.querySelector('#today-balance').textContent=formatDuration(displayedBalance);
+  const day=dayData(todayKey()); const displayedBalance=today.length||day.holidayName?day.balanceMinutes:0; document.querySelector('#worked-today').textContent=minsToClock(day.workedMinutes); document.querySelector('#daily-target').textContent=minsToClock(state.targetMinutes); document.querySelector('#today-balance').textContent=formatDuration(displayedBalance);
   document.querySelector('#today-balance').style.color=displayedBalance<0?'#b75046':'#244b43';
   const pct=Math.min(100, state.targetMinutes?Math.round(day.workedMinutes/state.targetMinutes*100):0);
   document.querySelector('#progress-ring').style.background=`conic-gradient(#a9d766 ${pct*3.6}deg,#edf1eb ${pct*3.6}deg 360deg)`;
-  document.querySelector('#progress-caption').textContent=day.open?'Jornada em andamento. Seu tempo está sendo contado até a última marcação.':day.workedMinutes?`${pct>=100?'Meta diária alcançada.':`${pct}% da sua meta diária.`}`:'Sua jornada começa com a primeira batida.';
+  document.querySelector('#progress-caption').textContent=day.open?'Jornada em andamento. Seu tempo está sendo contado até a última marcação.':day.holidayName&&!today.length?`Crédito de feriado: ${day.holidayName}.`:day.workedMinutes?`${pct>=100?'Meta diária alcançada.':`${pct}% da sua meta diária.`}`:'Sua jornada começa com a primeira batida.';
   const list=document.querySelector('#today-punches');
   list.innerHTML=today.length?today.slice().reverse().map(p=>`<div class="punch-row"><span class="punch-row-icon">${icon(icons[p.kind])}</span><span class="punch-row-text"><b>${esc(PUNCH_LABELS[p.kind])}</b><small>${p.manual?'Adicionada manualmente':'Registro pessoal'}</small>${photoAttachment(p)}</span><time>${formatClock(p.at)}</time></div>`).join(''):`<div class="empty-state"><div class="empty-mark">${icon('clock')}</div>Nenhuma marcação por aqui ainda.<br>Seu dia começa quando você quiser.</div>`;
   renderWeek();
@@ -104,12 +105,13 @@ function renderHistory() {
   const monthLabel=localDateLabel(viewedMonth,{month:'long',year:'numeric'}); document.querySelector('#history-month').textContent=monthLabel.charAt(0).toUpperCase()+monthLabel.slice(1);
   const prefix=dateKey(viewedMonth).slice(0,7); const items=state.punches.filter(p=>dateKey(p.at).startsWith(prefix));
   const grouped=new Map(); for(const p of items){const key=dateKey(p.at);if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(p)}
-  const dayRows=[...grouped.entries()].sort((a,b)=>b[0].localeCompare(a[0])); const summaries=dayRows.map(([key,p])=>({key,data:calculateDay(p,state.targetMinutes)}));
+  for(const key of getHolidaysForMonth(viewedMonth.getFullYear(),viewedMonth.getMonth()).keys())if(key<=todayKey()&&!grouped.has(key))grouped.set(key,[]);
+  const dayRows=[...grouped.entries()].sort((a,b)=>b[0].localeCompare(a[0])); const summaries=dayRows.map(([key,p])=>({key,data:dayData(key)}));
   const worked=summaries.reduce((n,r)=>n+r.data.workedMinutes,0); const balance=summaries.reduce((n,r)=>n+r.data.balanceMinutes,0);
-  document.querySelector('#history-summary').innerHTML=`<div class="history-stat"><span>Dias registrados</span><b>${dayRows.length}</b></div><div class="history-stat"><span>Horas registradas</span><b>${minsToClock(worked)}</b></div><div class="history-stat"><span>Saldo do período</span><b style="color:${balance<0?'#b75046':'#334c3e'}">${formatDuration(balance)}</b></div>`;
+  document.querySelector('#history-summary').innerHTML=`<div class="history-stat"><span>Dias contabilizados</span><b>${dayRows.length}</b></div><div class="history-stat"><span>Horas registradas</span><b>${minsToClock(worked)}</b></div><div class="history-stat"><span>Saldo do período</span><b style="color:${balance<0?'#b75046':'#334c3e'}">${formatDuration(balance)}</b></div>`;
   const history=document.querySelector('#history-list');
   if(!dayRows.length){history.innerHTML='<div class="history-empty">Nenhum registro neste mês. Quando adicionar marcações, elas aparecem aqui.</div>';return;}
-  history.innerHTML=dayRows.map(([key,p])=>{const date=new Date(`${key}T12:00:00`);const day=calculateDay(p,state.targetMinutes);const chips=p.sort((a,b)=>new Date(a.at)-new Date(b.at)).map(x=>`<span class="history-chip">${esc(PUNCH_LABELS[x.kind])}<b>${formatClock(x.at)}</b>${photoAttachment(x)}</span>`).join('');return `<article class="history-day"><div class="history-day-head"><div class="history-day-title"><b>${localDateLabel(date,{weekday:'short',day:'numeric',month:'short'})}</b><span>${p.length} ${p.length===1?'marcação':'marcações'}${day.open?' · em andamento':''}</span></div><span class="day-total">Trabalhadas <b>${minsToClock(day.workedMinutes)}</b></span></div><div class="history-punches">${chips}</div><div class="history-actions"><button data-edit-day="${key}">+ Adicionar marcação</button><button data-delete-day="${key}">Apagar dia</button></div></article>`}).join('');
+  history.innerHTML=dayRows.map(([key,p])=>{const date=new Date(`${key}T12:00:00`);const day=dayData(key);const chips=p.sort((a,b)=>new Date(a.at)-new Date(b.at)).map(x=>`<span class="history-chip">${esc(PUNCH_LABELS[x.kind])}<b>${formatClock(x.at)}</b>${photoAttachment(x)}</span>`).join('');const holidayNote=day.holidayName?`<span class="holiday-note">Feriado: ${esc(day.holidayName)}${p.length?'':` · crédito de ${minsToClock(state.targetMinutes)}`}</span>`:'';return `<article class="history-day"><div class="history-day-head"><div class="history-day-title"><b>${localDateLabel(date,{weekday:'short',day:'numeric',month:'short'})}</b><span>${p.length} ${p.length===1?'marcação':'marcações'}${day.open?' · em andamento':''}</span></div><span class="day-total">Trabalhadas <b>${minsToClock(day.workedMinutes)}</b></span></div><div class="history-punches">${holidayNote}${chips}</div><div class="history-actions"><button data-edit-day="${key}">+ Adicionar marcação</button><button data-delete-day="${key}">Apagar dia</button></div></article>`}).join('');
 }
 function renderSettings() { document.querySelector('#settings-target').value=minsToClock(state.targetMinutes);document.querySelector('#name-input').value=state.name||''; }
 function render() { renderClock();renderHome();renderHistory();renderSettings(); }

@@ -22,6 +22,22 @@ test('dia em andamento não inventa minutos após a última batida', () => {
   assert.equal(day.open, true);
 });
 
+test('credita a meta diária em feriado remunerado sem batidas', () => {
+  const day = calculateDay([], 528, 'Dia do Comerciário');
+  assert.equal(day.workedMinutes, 528);
+  assert.equal(day.balanceMinutes, 0);
+  assert.equal(day.holidayName, 'Dia do Comerciário');
+});
+
+test('em feriado com batidas contabiliza o tempo real sem duplicar crédito', () => {
+  const day = calculateDay([
+    { kind: 'clock_in', at: '2026-10-19T12:00:00.000Z' },
+    { kind: 'clock_out', at: '2026-10-19T20:48:00.000Z' },
+  ], 528, 'Dia do Comerciário');
+  assert.equal(day.workedMinutes, 528);
+  assert.equal(day.holidayName, 'Dia do Comerciário');
+});
+
 test('ignora par invertido sem produzir duração negativa', () => {
   const day = calculateDay([
     { kind: 'clock_out', at: '2026-10-18T08:00:00.000Z' },

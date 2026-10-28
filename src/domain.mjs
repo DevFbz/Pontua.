@@ -54,21 +54,30 @@ export function calculateBalance(days) {
 export function estimateDeparture(punches, targetMinutes = 480) {
   const sorted = [...punches].sort((a, b) => new Date(a.at) - new Date(b.at));
   let workStart = null;
+  let breakStart = null;
   let workedMinutes = 0;
+  let breakMinutes = 0;
   for (const punch of sorted) {
     const time = new Date(punch.at).getTime();
     if (!Number.isFinite(time)) continue;
     if (punch.kind === 'clock_in' || punch.kind === 'break_end') {
+      if (punch.kind === 'break_end' && breakStart !== null && time >= breakStart) {
+        breakMinutes += Math.floor((time - breakStart) / 60000);
+        breakStart = null;
+      }
       if (workStart === null) workStart = time;
     } else if (punch.kind === 'break_start' || punch.kind === 'clock_out') {
       if (workStart !== null && time >= workStart) {
         workedMinutes += Math.floor((time - workStart) / 60000);
         workStart = null;
       }
+      if (punch.kind === 'break_start') breakStart = time;
     }
   }
   if (workStart === null) return null;
-  return new Date(workStart + Math.max(0, targetMinutes - workedMinutes) * 60000).toISOString();
+  const remainingWork = Math.max(0, targetMinutes - workedMinutes);
+  const remainingBreak = Math.max(0, 60 - breakMinutes);
+  return new Date(workStart + (remainingWork + remainingBreak) * 60000).toISOString();
 }
 
 export function formatDuration(value) {

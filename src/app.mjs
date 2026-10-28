@@ -1,4 +1,4 @@
-import { PUNCH_LABELS, calculateDay, calculateBalance, createPunch, parseLocalDateTime, formatClock, formatDuration } from './domain.mjs';
+import { PUNCH_LABELS, calculateDay, calculateBalance, estimateDeparture, createPunch, parseLocalDateTime, formatClock, formatDuration } from './domain.mjs';
 import { icon } from './icons.mjs';
 import { prepareReceiptPhoto, putPunchPhoto, getPunchPhoto, deletePunchPhotos, clearPunchPhotos } from './photo-storage.mjs';
 import { createCloudStore } from './cloud-store.mjs';
@@ -82,6 +82,8 @@ function renderHome() {
   const today=dayPunches(todayKey()); const kind=nextKind(today);
   document.querySelector('#punch-button-label').textContent='Incluir batida';
   document.querySelector('#today-punch-count').textContent=`${today.length} ${today.length===1?'registro':'registros'}`;
+  const estimate=estimateDeparture(today,state.targetMinutes); const estimateEl=document.querySelector('#departure-estimate');
+  estimateEl.textContent=estimate?`Previsão de saída: ${formatClock(estimate)}${today.some(p=>p.kind==='break_start')?' (considerando os intervalos registrados)':' (sem considerar intervalos futuros)'}`:'';
   const last=today.at(-1); document.querySelector('#clock-message').textContent=last?`${PUNCH_LABELS[last.kind]} registrada às ${formatClock(last.at)}. Próximo passo no seu ritmo.`:'Quando começar, registre sua primeira entrada.';
   const day=dayData(todayKey()); const displayedBalance=today.length||day.holidayName?day.balanceMinutes:0; document.querySelector('#worked-today').textContent=minsToClock(day.workedMinutes); document.querySelector('#daily-target').textContent=minsToClock(state.targetMinutes); document.querySelector('#today-balance').textContent=formatDuration(displayedBalance);
   document.querySelector('#today-balance').style.color=displayedBalance<0?'#b75046':'#244b43';

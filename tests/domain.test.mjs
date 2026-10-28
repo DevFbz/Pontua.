@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateDay, calculateBalance, formatDuration, createPunch } from '../src/domain.mjs';
+import { calculateDay, calculateBalance, formatDuration, createPunch, estimateDeparture } from '../src/domain.mjs';
+
+test('estima saída somando a meta diária ao horário de entrada', () => {
+  assert.equal(estimateDeparture([{ kind: 'clock_in', at: '2026-10-18T08:00:00.000Z' }], 480), '2026-10-18T16:00:00.000Z');
+});
+
+test('estima saída considerando o trabalho já concluído e uma pausa registrada', () => {
+  const punches = [
+    { kind: 'clock_in', at: '2026-10-18T08:00:00.000Z' },
+    { kind: 'break_start', at: '2026-10-18T12:00:00.000Z' },
+    { kind: 'break_end', at: '2026-10-18T13:00:00.000Z' },
+  ];
+  assert.equal(estimateDeparture(punches, 480), '2026-10-18T17:00:00.000Z');
+});
 
 test('calcula jornada normal descontando intervalo', () => {
   const day = calculateDay([

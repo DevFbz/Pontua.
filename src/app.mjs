@@ -113,7 +113,7 @@ function renderHistory() {
   document.querySelector('#history-summary').innerHTML=`<div class="history-stat"><span>Dias contabilizados</span><b>${dayRows.length}</b></div><div class="history-stat"><span>Horas registradas</span><b>${minsToClock(worked)}</b></div><div class="history-stat"><span>Saldo do período</span><b style="color:${balance<0?'#b75046':'#334c3e'}">${formatDuration(balance)}</b></div>`;
   const history=document.querySelector('#history-list');
   if(!dayRows.length){history.innerHTML='<div class="history-empty">Nenhum registro neste mês. Quando adicionar marcações, elas aparecem aqui.</div>';return;}
-  history.innerHTML=dayRows.map(([key,p])=>{const date=new Date(`${key}T12:00:00`);const day=dayData(key);const chips=p.sort((a,b)=>new Date(a.at)-new Date(b.at)).map(x=>`<span class="history-chip">${esc(PUNCH_LABELS[x.kind])}<b>${formatClock(x.at)}</b>${photoAttachment(x)}</span>`).join('');const holidayNote=day.holidayName?`<span class="holiday-note">Feriado: ${esc(day.holidayName)}${p.length?'':` · crédito de ${minsToClock(state.targetMinutes)}`}</span>`:'';return `<article class="history-day"><div class="history-day-head"><div class="history-day-title"><b>${localDateLabel(date,{weekday:'short',day:'numeric',month:'short'})}</b><span>${p.length} ${p.length===1?'marcação':'marcações'}${day.open?' · em andamento':''}</span></div><span class="day-total">Trabalhadas <b>${minsToClock(day.workedMinutes)}</b></span></div><div class="history-punches">${holidayNote}${chips}</div><div class="history-actions"><button data-edit-day="${key}">+ Adicionar marcação</button><button data-delete-day="${key}">Apagar dia</button></div></article>`}).join('');
+  history.innerHTML=dayRows.map(([key,p])=>{const date=new Date(`${key}T12:00:00`);const day=dayData(key);const chips=p.sort((a,b)=>new Date(a.at)-new Date(b.at)).map(x=>`<span class="history-chip"><span>${esc(PUNCH_LABELS[x.kind])}<b>${formatClock(x.at)}</b></span>${photoAttachment(x)}<button class="history-punch-action" data-edit-punch="${esc(x.id)}">Editar</button><button class="history-punch-action danger" data-delete-punch="${esc(x.id)}">Excluir</button></span>`).join('');const holidayNote=day.holidayName?`<span class="holiday-note">Feriado: ${esc(day.holidayName)}${p.length?'':` · crédito de ${minsToClock(state.targetMinutes)}`}</span>`:'';return `<article class="history-day"><div class="history-day-head"><div class="history-day-title"><b>${localDateLabel(date,{weekday:'short',day:'numeric',month:'short'})}</b><span>${p.length} ${p.length===1?'marcação':'marcações'}${day.open?' · em andamento':''}</span></div><span class="day-total">Trabalhadas <b>${minsToClock(day.workedMinutes)}</b></span></div><div class="history-punches">${holidayNote}${chips}</div><div class="history-actions"><button data-edit-day="${key}">+ Adicionar marcação</button><button data-delete-day="${key}">Apagar dia</button></div></article>`}).join('');
 }
 function renderSettings() { document.querySelector('#settings-target').value=minsToClock(state.targetMinutes);document.querySelector('#name-input').value=state.name||''; }
 function render() { renderClock();renderHome();renderHistory();renderSettings(); }
@@ -126,6 +126,13 @@ function manualModal(key=todayKey(), currentKind=null) {
   const kindOptions=Object.entries(PUNCH_LABELS).map(([k,v])=>`<option value="${k}" ${k===currentKind?'selected':''}>${v}</option>`).join('');
   modal('INCLUIR BATIDA',`<h2>Incluir batida</h2><p>Escolha o tipo de registro e confira a data e o horário antes de salvar.</p><div class="modal-field"><label for="manual-date">Data</label><input id="manual-date" type="date" value="${key}" required></div><div class="modal-field"><label for="manual-kind">Tipo de marcação</label><select id="manual-kind">${kindOptions}</select></div><div class="modal-field"><label for="manual-time">Horário</label><input id="manual-time" type="time" value="${time}" required></div><section class="photo-capture"><input id="receipt-photo-input" class="visually-hidden-input" type="file" accept="image/*" capture="environment" tabindex="-1" aria-label="Foto do comprovante"><button type="button" class="photo-capture-button" data-action="choose-photo">${icon('camera')}<span id="receipt-photo-label">Tirar foto do comprovante</span></button><div id="receipt-photo-preview" class="photo-preview" hidden><img id="receipt-photo-image" alt="Prévia do comprovante"><div class="photo-preview-meta"><span>A foto será anexada a esta batida.</span><button type="button" data-action="remove-photo">Remover</button></div></div><p class="photo-capture-note">A foto fica guardada neste navegador junto com o registro.</p></section><div class="modal-note">O horário será salvo neste navegador. Você pode completar ou apagar registros pelo histórico.</div>`,`<button class="modal-cancel" data-action="close-modal">Cancelar</button><button class="modal-confirm" data-action="save-manual">Incluir batida</button>`);
 }
+function editPunchModal(id) {
+  const punch=state.punches.find(item=>item.id===id);if(!punch)return;
+  clearPendingEditPhoto();
+  const date=dateKey(punch.at);const time=formatClock(punch.at);const kindOptions=Object.entries(PUNCH_LABELS).map(([k,v])=>`<option value="${k}" ${k===punch.kind?'selected':''}>${v}</option>`).join('');
+  modal('EDITAR MARCAÇÃO',`<h2>Editar marcação</h2><p>Atualize o tipo, a data, o horário ou anexe uma foto que ficou faltando.</p><div class="modal-field"><label for="edit-date">Data</label><input id="edit-date" type="date" value="${date}" required></div><div class="modal-field"><label for="edit-kind">Tipo de marcação</label><select id="edit-kind">${kindOptions}</select></div><div class="modal-field"><label for="edit-time">Horário</label><input id="edit-time" type="time" value="${time}" required></div><section class="photo-capture"><input id="edit-photo-input" class="visually-hidden-input" type="file" accept="image/*" capture="environment" tabindex="-1" aria-label="Anexar foto"><button type="button" class="photo-capture-button" data-action="choose-edit-photo">${icon('camera')}<span id="edit-photo-label">${punch.photoId?'Trocar foto':'Anexar foto'}</span></button><div id="edit-photo-preview" class="photo-preview" hidden><img id="edit-photo-image" alt="Prévia da foto"><div class="photo-preview-meta"><span>Foto pronta para anexar.</span><button type="button" data-action="remove-edit-photo">Remover</button></div></div></section><div class="modal-note">A alteração será sincronizada com sua conta.</div>`,`<button class="modal-cancel" data-action="close-modal">Cancelar</button><button class="modal-confirm" data-action="save-edit-punch" data-id="${esc(id)}">Salvar alterações</button>`);
+}
+function clearPendingEditPhoto(){if(pendingReceiptUrl)URL.revokeObjectURL(pendingReceiptUrl);pendingReceiptUrl=null;pendingReceiptPhoto=null;const preview=document.querySelector('#edit-photo-preview');if(preview)preview.hidden=true;const image=document.querySelector('#edit-photo-image');if(image)image.removeAttribute('src');const label=document.querySelector('#edit-photo-label');if(label)label.textContent='Anexar foto';const input=document.querySelector('#edit-photo-input');if(input)input.value='';}
 async function showReceiptPhoto(photoId) {
   try {
     const punch=state.punches.find(item=>item.photoId===photoId);
@@ -233,7 +240,7 @@ document.addEventListener('change', async e=>{
     try{await saveCloudSettings();showToast('Meta diária atualizada.');}catch{showToast('Meta salva neste dispositivo; falha ao sincronizar.');}
     render();return;
   }
-  if(input.id!=='receipt-photo-input')return;
+  if(!['receipt-photo-input','edit-photo-input'].includes(input.id))return;
   const file=input.files?.[0];
   if(!file)return;
   const button=document.querySelector('.photo-capture-button');
@@ -243,9 +250,15 @@ document.addEventListener('change', async e=>{
     clearPendingReceiptPhoto();
     pendingReceiptPhoto=photo;
     pendingReceiptUrl=URL.createObjectURL(photo);
-    document.querySelector('#receipt-photo-image').src=pendingReceiptUrl;
-    document.querySelector('#receipt-photo-preview').hidden=false;
-    document.querySelector('#receipt-photo-label').textContent='Trocar foto do comprovante';
+    if(input.id==='edit-photo-input'){
+      document.querySelector('#edit-photo-image').src=pendingReceiptUrl;
+      document.querySelector('#edit-photo-preview').hidden=false;
+      document.querySelector('#edit-photo-label').textContent='Trocar foto';
+    }else{
+      document.querySelector('#receipt-photo-image').src=pendingReceiptUrl;
+      document.querySelector('#receipt-photo-preview').hidden=false;
+      document.querySelector('#receipt-photo-label').textContent='Trocar foto do comprovante';
+    }
   } catch(error) {
     showToast(error.message||'Não foi possível preparar a foto.');
   } finally {
@@ -257,10 +270,14 @@ document.addEventListener('change', async e=>{
 document.addEventListener('click', async e=>{
   const receipt=e.target.closest('[data-view-photo]');if(receipt){await showReceiptPhoto(receipt.dataset.viewPhoto);return;}
   const nav=e.target.closest('[data-view],[data-view-link]');if(nav){e.preventDefault();navigate(nav.dataset.view||nav.dataset.viewLink);return;}
+  const editPunch=e.target.closest('[data-edit-punch]');if(editPunch){editPunchModal(editPunch.dataset.editPunch);return;}
+  const deletePunch=e.target.closest('[data-delete-punch]');if(deletePunch){const punch=state.punches.find(item=>item.id===deletePunch.dataset.deletePunch);if(!punch)return;modal('EXCLUIR MARCAÇÃO',`<h2>Excluir esta marcação?</h2><p>${esc(PUNCH_LABELS[punch.kind])}, às ${formatClock(punch.at)}, e sua foto, se houver, serão excluídas. Essa ação não pode ser desfeita.</p>`,`<button class="modal-cancel" data-action="close-modal">Cancelar</button><button class="modal-danger" data-action="confirm-delete-punch" data-id="${esc(punch.id)}">Excluir marcação</button>`);return;}
   const editDay=e.target.closest('[data-edit-day]');if(editDay){manualModal(editDay.dataset.editDay);return;}
   const deleteDay=e.target.closest('[data-delete-day]');if(deleteDay){const key=deleteDay.dataset.deleteDay;modal('APAGAR REGISTROS',`<h2>Apagar este dia?</h2><p>Os registros e fotos de ${key.split('-').reverse().join('/')} serão removidos da sua conta e deste dispositivo. Essa ação não pode ser desfeita.</p>`,`<button class="modal-cancel" data-action="close-modal">Cancelar</button><button class="modal-danger" data-action="confirm-delete-day" data-key="${key}">Apagar dia</button>`);return;}
   const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;
   if(action==='choose-photo'){document.querySelector('#receipt-photo-input')?.click();return;}
+  if(action==='choose-edit-photo'){document.querySelector('#edit-photo-input')?.click();return;}
+  if(action==='remove-edit-photo'){clearPendingEditPhoto();return;}
   if(action==='remove-photo'){clearPendingReceiptPhoto();return;}
   if(action==='settings'){navigate('ajustes');return;}
   if(action==='help'){modal('COMO FUNCIONA',`<h2>Seu registro, do seu jeito.</h2><p>Toque no botão para abrir o registro da próxima etapa. O horário atual vem sugerido, mas você pode alterá-lo antes de confirmar. Também pode adicionar marcações de outros dias pelo histórico. Seus registros são salvos na sua conta e sincronizados pela nuvem.</p><div class="modal-note">Este app é um controle pessoal. Não substitui o sistema oficial de ponto da sua empresa.</div>`,`<button class="modal-confirm" data-action="close-modal">Entendi</button>`);return;}
@@ -295,6 +312,25 @@ document.addEventListener('click', async e=>{
     try{await saveCloudPunch(entry);}catch{syncFailed=true;}
     closeModal();render();showToast(syncFailed?'Batida guardada neste dispositivo; sincronização pendente.':`${PUNCH_LABELS[kind]} registrada às ${formatClock(at)}.`);return;
   }
+  if(action==='save-edit-punch'){
+    const id=e.target.closest('[data-action]').dataset.id;const punch=state.punches.find(item=>item.id===id);if(!punch)return;
+    const date=document.querySelector('#edit-date').value;const time=document.querySelector('#edit-time').value;const kind=document.querySelector('#edit-kind').value;
+    if(!date||!time){showToast('Preencha a data e o horário.');return;}
+    let at;try{at=parseLocalDateTime(date,time)}catch{showToast('Confira a data e o horário.');return;}
+    const button=document.querySelector('[data-action="save-edit-punch"]');if(button)button.disabled=true;
+    try{
+      if(pendingReceiptPhoto){await putPunchPhoto(id,pendingReceiptPhoto);punch.photoId=id;}
+      punch.kind=kind;punch.at=at.toISOString();saveState();await saveCloudPunch(punch);
+      closeModal();render();showToast('Marcação atualizada e sincronizada.');
+    }catch(error){if(button)button.disabled=false;showToast(error.message||'Não foi possível atualizar a marcação.');}
+    return;
+  }
+  if(action==='confirm-delete-punch'){
+    const id=e.target.closest('[data-action]').dataset.id;const punch=state.punches.find(item=>item.id===id);if(!punch)return;
+    try{if(cloudStore)await cloudStore.deletePunches([punch]);await deletePunchPhotos([punch.photoId]);}
+    catch{showToast('Não foi possível excluir a marcação e a foto. Seus dados foram mantidos.');return;}
+    state.punches=state.punches.filter(item=>item.id!==id);saveState();closeModal();render();showToast('Marcação excluída.');return;
+  }
   if(action==='confirm-delete-day'){
     const key=e.target.closest('[data-action]').dataset.key;
     const removed=state.punches.filter(punch=>dateKey(punch.at)===key);
@@ -313,7 +349,7 @@ document.addEventListener('click', async e=>{
 
 document.querySelector('#punch-button').addEventListener('click',()=>{const punches=dayPunches(todayKey());manualModal(todayKey(),nextKind(punches));});
 document.querySelector('#modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
-document.querySelector('#modal').addEventListener('close',()=>{clearPendingReceiptPhoto();clearViewedReceiptPhoto();});
+document.querySelector('#modal').addEventListener('close',()=>{clearPendingReceiptPhoto();clearPendingEditPhoto();clearViewedReceiptPhoto();});
 window.addEventListener('hashchange',()=>{if(!document.querySelector('.app-shell').hidden)navigate(location.hash.slice(1));});
 void startCloudApp();
 setInterval(()=>{if(!document.querySelector('.app-shell').hidden)renderClock();},15000);
